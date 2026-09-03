@@ -48,6 +48,29 @@ cancelled, so a failed run does not hold a machine until its lease expires.
 | `SIM_ROUTER_API_KEY` | Actions **secret** | Never pass a literal. |
 | `SIM_ROUTER_URL` | Actions secret, optional | Only for a router other than the one baked into the binary. Leave it out entirely rather than setting it empty. |
 
+### Secret handling
+
+`api-key` **must** come from `secrets.*`. The runner echoes a step's whole
+`with:` block into the log, and the only thing that redacts a value there is
+GitHub's automatic masking of registered secrets — so a key passed from
+`vars.*` or as a literal is printed in plaintext, and the action's own
+`::add-mask::` cannot help, because the header is written before the action
+starts. Passing it through `env:` instead of `with:` changes nothing: that
+block is echoed too.
+
+Given a secret, the key stays contained:
+
+* it reaches the CLI as an environment variable, never as an argument, so it
+  is not visible in `ps` to anything else on the runner;
+* it is never written to `GITHUB_ENV`, `GITHUB_OUTPUT` or `GITHUB_STATE`, so
+  it does not reach later steps — the post step is handed only the CLI path;
+* `sim-remote login` exchanges it for a session token kept in the daemon's
+  memory, and neither is written to disk, so a `$HOME` cache or an artifact
+  upload cannot carry it out of the job.
+
+Later steps use the daemon's session rather than the credential, which is why
+only `acquire` needs it.
+
 ## `install`
 
 Downloads the CLI from the release repo and adds it to `PATH`. No credentials,
