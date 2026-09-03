@@ -9,18 +9,19 @@
 
 const { spawnSync } = require('node:child_process');
 
-const { appendCommandFile, boolInput, input, intInput } = require('../lib/lib.js');
+const { appendCommandFile, boolInput, childEnv, input, intInput } = require('../lib/lib.js');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /// Run a command, inheriting stdio so its output lands in the job log.
 /// Returns whether it succeeded rather than throwing, because the acquire
 /// retry loop cares about failure without dying on it.
-function run(command, args, env = {}) {
-  const result = spawnSync(command, args, {
-    stdio: 'inherit',
-    env: { ...process.env, ...env },
-  });
+///
+/// `env` is the child's complete environment, not an overlay on this
+/// process's: childEnv() removes variables as well as adding them, and
+/// merging `process.env` back in here would undo the removals.
+function run(command, args, env = process.env) {
+  const result = spawnSync(command, args, { stdio: 'inherit', env });
   if (result.error) throw result.error;
   return result.status === 0;
 }
@@ -41,17 +42,6 @@ function resolveCli() {
   return 'sim-remote';
 }
 
-/// Environment the CLI reads its connection settings from.
-///
-/// SIM_ROUTER_URL is only set when non-empty: the binary has a router URL
-/// baked in at build time, and an empty variable (how an unset secret arrives
-/// in a workflow expression) would override it with nothing.
-function routerEnv({ routerUrl, username, apiKey }) {
-  const env = { SIM_ROUTER_USERNAME: username, SIM_ROUTER_API_KEY: apiKey };
-  if (routerUrl) env.SIM_ROUTER_URL = routerUrl;
-  return env;
-}
-
 /// Log in, then acquire a machine, retrying while the fleet is busy.
 ///
 /// Login and acquire are separate calls (`login --no-acquire`) so that only
@@ -60,7 +50,7 @@ function routerEnv({ routerUrl, username, apiKey }) {
 /// acquire wait to its own maximum, so a long queue is waited out by asking
 /// repeatedly rather than by asking for one very long wait.
 async function loginAndAcquire(cli, options) {
-  const env = routerEnv(options);
+  const env = childEnv(process.env, options);
 
   if (!run(cli, ['login', '--no-acquire'], env)) {
     throw new Error('sim-remote login failed — check SIM_ROUTER_USERNAME / SIM_ROUTER_API_KEY');

@@ -9,6 +9,8 @@
 
 const { spawnSync } = require('node:child_process');
 
+const { childEnv } = require('../lib/lib.js');
+
 const cli = process.env.STATE_sim_remote_path;
 const shouldRelease = (process.env.STATE_release ?? 'true') !== 'false';
 const routerUrl = process.env.STATE_router_url;
@@ -23,8 +25,9 @@ if (!shouldRelease) {
   process.exit(0);
 }
 
-const env = { ...process.env };
-if (routerUrl) env.SIM_ROUTER_URL = routerUrl;
+// Same treatment as the login: an empty inherited SIM_ROUTER_URL would send
+// the logout to nowhere, stranding the machine until its lease expires.
+const env = childEnv(process.env, { routerUrl });
 
 const result = spawnSync(cli, ['logout'], { stdio: 'inherit', env });
 

@@ -14,9 +14,10 @@ inputs:
     required: true
   router-url:
     description: >-
-      sim-router URL. Leave empty to use the one baked into the binary — an
-      unset secret arrives as an empty string, and passing that through would
-      override the baked-in default with nothing.
+      sim-router URL. Leave empty to use the one baked into the binary. An
+      empty value is treated as unset — whether it is passed here or inherited
+      as an empty SIM_ROUTER_URL from the job environment, which is what
+      `${{ secrets.SIM_ROUTER_URL }}` expands to when that secret is not set.
     required: false
     default: ''
   acquire:

@@ -46,7 +46,7 @@ cancelled, so a failed run does not hold a machine until its lease expires.
 | --- | --- | --- |
 | `SIM_ROUTER_USERNAME` | Actions **variable** (or secret) | Your fleet user. |
 | `SIM_ROUTER_API_KEY` | Actions **secret** | Never pass a literal. |
-| `SIM_ROUTER_URL` | Actions secret, optional | Only for a router other than the one baked into the binary. Leave it out entirely rather than setting it empty. |
+| `SIM_ROUTER_URL` | Actions secret, optional | Only for a router other than the one baked into the binary. Safe to wire up unconditionally: an empty value means "use the built-in default". |
 
 ### Secret handling
 
@@ -116,7 +116,7 @@ job. Expects `sim-remote` on `PATH`, so it goes after `install`.
 | --- | --- | --- |
 | `username` | — | sim-router username. Required. |
 | `api-key` | — | sim-router API key. Required. |
-| `router-url` | `''` | Router URL. Empty means the one baked into the binary. |
+| `router-url` | `''` | Router URL. Empty means the one baked into the binary — see below. |
 | `acquire` | `true` | Take a machine after logging in. `false` logs in only. |
 | `timeout` | `300` | Seconds a single acquire waits for a free machine. |
 | `retries` | `8` | How many acquire attempts before giving up. |
@@ -130,6 +130,22 @@ The machine is released in a post step that runs even when the job fails or is
 cancelled, so a failed run does not hold a machine until its lease expires.
 That post step is the reason this is a JavaScript action: a composite action
 cannot register one.
+
+### An empty router URL
+
+An empty `SIM_ROUTER_URL` is treated as unset, both as this input and as an
+inherited environment variable. That matters because a job written as
+
+```yaml
+env:
+  SIM_ROUTER_URL: ${{ secrets.SIM_ROUTER_URL }}
+```
+
+gets an empty string, not an absent variable, whenever that secret is not
+configured — and the CLI counts a set-but-empty variable as a value, so it
+would override the URL baked into the binary with nothing and fail to connect
+(`error: builder error`). The action strips it instead, so wiring the secret
+up unconditionally is safe.
 
 ### Waiting for a machine
 
