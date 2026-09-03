@@ -1,0 +1,87 @@
+name: Install Maestro shims
+description: >-
+  Put sim-remote's Maestro shims on PATH so a stock `maestro` CLI drives a
+  remote simulator — including on Linux, with no Xcode toolchain.
+author: Software Mansion
+
+inputs:
+  dir:
+    description: >-
+      Where to write the shims. Defaults to a directory under the runner
+      temp, which is wiped between jobs.
+    required: false
+    default: ''
+  install-plistutil:
+    description: >-
+      On Linux, apt-install libplist-utils, which backs the `plutil` shim
+      (Maestro pipes `simctl listapps` output through plutil). Set to false if
+      the image already provides it.
+    required: false
+    default: 'true'
+  add-to-path:
+    description: >-
+      Prepend the shim directory to PATH for the rest of the job. With false,
+      the directory is only reported as an output — use that on macOS runners
+      that still need the real xcrun/xcodebuild in later steps.
+    required: false
+    default: 'true'
+
+outputs:
+  shim-dir:
+    description: Directory the shims were written to.
+    value: ${{ steps.shims.outputs.shim-dir }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install plistutil
+      if: ${{ runner.os == 'Linux' && inputs.install-plistutil == 'true' }}
+      shell: bash
+      run: |
+        if ! command -v plistutil > /dev/null; then
+          sudo apt-get update
+          sudo apt-get install -y libplist-utils
+        fi
+
+    - name: Write Maestro shims
+      id: shims
+      shell: bash
+      env:
+        INPUT_DIR: ${{ inputs.dir }}
+        INPUT_ADD_TO_PATH: ${{ inputs.add-to-path }}
+        RUNNER_TEMP_DIR: ${{ runner.temp }}
+      run: |
+        set -euo pipefail
+
+        if ! command -v sim-remote > /dev/null; then
+          echo "::error::sim-remote is not on PATH — run the setup action first"
+          exit 1
+        fi
+
+        # `daily` is a rolling tag and has been rebuilt without the shims
+        # before; failing here says so, rather than leaving Maestro to fail
+        # much later with a missing xcrun.
+        if ! sim-remote install-shims --help > /dev/null 2>&1; then
+          echo "::error::this sim-remote build has no 'install-shims' command — install a newer release"
+          exit 1
+        fi
+
+        SHIM_DIR="${INPUT_DIR:-$RUNNER_TEMP_DIR/sim-remote-shims}"
+
+        # install-shims writes the files and prints shell code for a shell to
+        # eval. Only the files are wanted here: a step's PATH edit dies with
+        # the step, so the directory goes onto GITHUB_PATH instead, where it
+        # applies to every later step in the job.
+        sim-remote install-shims --dir "$SHIM_DIR" > /dev/null
+
+        echo "shim-dir=$SHIM_DIR" >> "$GITHUB_OUTPUT"
+        echo "SIM_REMOTE_SHIM_DIR=$SHIM_DIR" >> "$GITHUB_ENV"
+        echo "SIM_REMOTE_BIN=$(command -v sim-remote)" >> "$GITHUB_ENV"
+
+        if [ "$INPUT_ADD_TO_PATH" = "true" ]; then
+          echo "$SHIM_DIR" >> "$GITHUB_PATH"
+        fi
+
+branding:
+  icon: terminal
+  color: purple

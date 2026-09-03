@@ -1,0 +1,57 @@
+name: E2E
+
+# The credentialed path: acquires a real fleet machine, talks to it, and
+# checks the Maestro shims stand in for Xcode. Manual, because it occupies a
+# machine from the pool for the length of the run.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: sim-remote release tag to test
+        type: string
+        default: daily
+  schedule:
+    # Weekly, so a rolling `daily` build that breaks the actions is noticed
+    # before a consumer repo trips over it.
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  remote-simulator:
+    name: Drive a remote simulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup sim-remote
+        uses: ./setup
+        with:
+          username: ${{ secrets.SIM_ROUTER_USERNAME }}
+          api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
+          router-url: ${{ secrets.SIM_ROUTER_URL }}
+          version: ${{ inputs.version || 'daily' }}
+
+      - name: List the simulators on the acquired machine
+        run: sim-remote simctl list devices --json | jq -e '.devices' > /dev/null
+
+      - name: Install the Maestro shims
+        uses: ./maestro-shims
+
+      # The shims are the whole Maestro integration, so exercising the two
+      # Maestro leans on hardest — `xcrun simctl` and the plutil translation —
+      # covers the rest by construction.
+      - name: Check the shims answer as Xcode would
+        run: |
+          set -euo pipefail
+
+          # `xcrun` forwards to the remote machine...
+          xcrun simctl list devices --json | jq -e '.devices' > /dev/null
+
+          # ...and `plutil` translates the plist dialect `simctl listapps`
+          # prints, which is what Maestro pipes through it.
+          printf '%s' '{ Label = value; }' | plutil -convert json - -o - | jq -e '.Label' > /dev/null
+
+          xcode-select -p > /dev/null

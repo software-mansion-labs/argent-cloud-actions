@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Lint workflows and actions
+        run: |
+          docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint:latest -color
+
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --test
+
+  # Installs the CLI without credentials, which is all that can be checked
+  # without a fleet: it proves the asset for this runner exists, downloads,
+  # runs, and lands on PATH. The credentialed path is e2e.yml.
+  install:
+    name: Install (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install sim-remote
+        id: setup
+        uses: ./setup
+
+      - name: Check the CLI is on PATH and runs
+        run: |
+          command -v sim-remote
+          sim-remote --help > /dev/null
+          test -x "${{ steps.setup.outputs.sim-remote-path }}"
+          test "${{ steps.setup.outputs.logged-in }}" = "false"

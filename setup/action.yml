@@ -1,0 +1,86 @@
+name: Setup sim-remote
+description: >-
+  Install the sim-remote CLI, log in to Argent Cloud and acquire a fleet
+  machine. The machine is released automatically when the job ends.
+author: Software Mansion
+
+inputs:
+  username:
+    description: >-
+      sim-router username. Omit together with api-key to install the CLI
+      without logging in.
+    required: false
+    default: ''
+  api-key:
+    description: sim-router API key. Pass a secret, never a literal.
+    required: false
+    default: ''
+  router-url:
+    description: >-
+      sim-router URL. Leave empty to use the one baked into the binary — an
+      unset secret arrives as an empty string, and passing that through would
+      override the baked-in default with nothing.
+    required: false
+    default: ''
+  version:
+    description: >-
+      Release tag to install from the release repo. The default, `daily`, is a
+      rolling prerelease rebuilt from the latest tree; pin a version tag for
+      reproducible runs.
+    required: false
+    default: daily
+  release-repo:
+    description: Repository holding the sim-remote releases.
+    required: false
+    default: software-mansion/sim-remote-releases
+  token:
+    description: >-
+      Token with read access to release-repo. Only needed when that repo is
+      private; public releases download unauthenticated.
+    required: false
+    default: ''
+  acquire:
+    description: >-
+      Acquire a fleet machine after logging in. Set to false for a job that
+      only needs the CLI (or that attaches to a machine it already holds).
+    required: false
+    default: 'true'
+  acquire-timeout:
+    description: >-
+      Seconds a single acquire waits for a free machine. The router clamps
+      this to its own maximum, which is why waiting longer is done by retrying
+      rather than by raising this.
+    required: false
+    default: '300'
+  acquire-retries:
+    description: How many acquire attempts to make before giving up.
+    required: false
+    default: '8'
+  acquire-retry-delay:
+    description: Seconds to wait between acquire attempts.
+    required: false
+    default: '30'
+  logout:
+    description: >-
+      Log out (releasing the machine) in the post step. Set to false only when
+      a later job in the same run is meant to inherit the session.
+    required: false
+    default: 'true'
+
+outputs:
+  sim-remote-path:
+    description: Absolute path of the installed CLI.
+  install-dir:
+    description: Directory added to PATH, holding the CLI.
+  logged-in:
+    description: '"true" when the action logged in, "false" when it installed only.'
+
+runs:
+  using: node20
+  main: main.js
+  post: post.js
+  post-if: always()
+
+branding:
+  icon: smartphone
+  color: purple
