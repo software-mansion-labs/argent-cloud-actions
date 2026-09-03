@@ -7,11 +7,13 @@ A job that uses them needs no macOS runner and no Xcode: `ubuntu-latest` plus
 a fleet machine is enough to install an app, drive a simulator, and run
 Maestro flows. Building the `.app` still needs a Mac.
 
-Two actions:
+Three actions, one job each, so a workflow takes only what it needs — a lint
+or tooling job can have the client without booking a machine:
 
 | Action | What it does |
 | --- | --- |
-| [`setup`](#setup) | Installs the `sim-remote` CLI, logs in, acquires a fleet machine, and **releases it when the job ends**. |
+| [`install`](#install) | Fetches the `sim-remote` CLI for the runner's platform and puts it on `PATH`. |
+| [`acquire`](#acquire) | Logs in, takes a fleet machine, and **releases it when the job ends**. |
 | [`maestro-shims`](#maestro-shims) | Puts sim-remote's Maestro shims on `PATH`, so a stock `maestro` CLI drives the remote simulator. |
 
 ## Quickstart
@@ -23,7 +25,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: software-mansion-labs/argent-cloud-actions/setup@v1
+      - uses: software-mansion-labs/argent-cloud-actions/install@v1
+
+      - uses: software-mansion-labs/argent-cloud-actions/acquire@v1
         with:
           username: ${{ vars.SIM_ROUTER_USERNAME }}
           api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
@@ -44,14 +48,15 @@ cancelled, so a failed run does not hold a machine until its lease expires.
 | `SIM_ROUTER_API_KEY` | Actions **secret** | Never pass a literal. |
 | `SIM_ROUTER_URL` | Actions secret, optional | Only for a router other than the one baked into the binary. Leave it out entirely rather than setting it empty. |
 
-## `setup`
+## `install`
+
+Downloads the CLI from the release repo and adds it to `PATH`. No credentials,
+no machine — a job that only needs the binary stops here.
 
 ```yaml
-- uses: software-mansion-labs/argent-cloud-actions/setup@v1
-  id: argent
+- uses: software-mansion-labs/argent-cloud-actions/install@v1
+  id: install
   with:
-    username: ${{ vars.SIM_ROUTER_USERNAME }}
-    api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
     version: daily
 ```
 
@@ -59,17 +64,9 @@ cancelled, so a failed run does not hold a machine until its lease expires.
 
 | Input | Default | Description |
 | --- | --- | --- |
-| `username` | `''` | sim-router username. Omit together with `api-key` to install the CLI without logging in. |
-| `api-key` | `''` | sim-router API key. |
-| `router-url` | `''` | Router URL. Empty means the one baked into the binary. |
 | `version` | `daily` | Release tag to install. `daily` is a rolling prerelease — pin a version tag for reproducible runs. |
 | `release-repo` | `software-mansion/sim-remote-releases` | Repository holding the releases. |
 | `token` | `''` | Token with read access to `release-repo`; only needed when it is private. |
-| `acquire` | `true` | Acquire a fleet machine after logging in. |
-| `acquire-timeout` | `300` | Seconds a single acquire waits for a free machine. |
-| `acquire-retries` | `8` | How many acquire attempts before giving up. |
-| `acquire-retry-delay` | `30` | Seconds between attempts. |
-| `logout` | `true` | Release the machine in the post step. |
 
 ### Outputs
 
@@ -77,7 +74,39 @@ cancelled, so a failed run does not hold a machine until its lease expires.
 | --- | --- |
 | `sim-remote-path` | Absolute path of the installed CLI. |
 | `install-dir` | Directory added to `PATH`. |
-| `logged-in` | `true` when the action logged in, `false` when it installed only. |
+
+## `acquire`
+
+Logs in and takes a machine from the fleet, holding it for the rest of the
+job. Expects `sim-remote` on `PATH`, so it goes after `install`.
+
+```yaml
+- uses: software-mansion-labs/argent-cloud-actions/acquire@v1
+  with:
+    username: ${{ vars.SIM_ROUTER_USERNAME }}
+    api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
+```
+
+### Inputs
+
+| Input | Default | Description |
+| --- | --- | --- |
+| `username` | — | sim-router username. Required. |
+| `api-key` | — | sim-router API key. Required. |
+| `router-url` | `''` | Router URL. Empty means the one baked into the binary. |
+| `acquire` | `true` | Take a machine after logging in. `false` logs in only. |
+| `timeout` | `300` | Seconds a single acquire waits for a free machine. |
+| `retries` | `8` | How many acquire attempts before giving up. |
+| `retry-delay` | `30` | Seconds between attempts. |
+| `release` | `true` | Release the machine in the post step. |
+| `sim-remote-path` | `''` | Path to the CLI. Defaults to `sim-remote` from `PATH`. |
+
+### Releasing
+
+The machine is released in a post step that runs even when the job fails or is
+cancelled, so a failed run does not hold a machine until its lease expires.
+That post step is the reason this is a JavaScript action: a composite action
+cannot register one.
 
 ### Waiting for a machine
 
@@ -85,8 +114,7 @@ The fleet is a fixed pool, so a matrix of jobs will queue. Login and acquire
 are separate calls: a bad credential fails immediately, while a busy pool is
 waited out by retrying `acquire` — the defaults give up after
 `8 × 300 s ≈ 40 minutes`. The router clamps how long a *single* acquire may
-wait, which is why waiting longer means more retries, not a bigger
-`acquire-timeout`.
+wait, which is why waiting longer means more retries, not a bigger `timeout`.
 
 ## `maestro-shims`
 
@@ -96,7 +124,9 @@ for all six; with them on `PATH`, the stock Maestro CLI drives a remote
 simulator from Linux, unmodified.
 
 ```yaml
-- uses: software-mansion-labs/argent-cloud-actions/setup@v1
+- uses: software-mansion-labs/argent-cloud-actions/install@v1
+
+- uses: software-mansion-labs/argent-cloud-actions/acquire@v1
   with:
     username: ${{ vars.SIM_ROUTER_USERNAME }}
     api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
@@ -164,7 +194,9 @@ instead:
     path: .argent-cloud-actions
     token: ${{ secrets.ARGENT_ACTIONS_TOKEN }}  # read access to this repo
 
-- uses: ./.argent-cloud-actions/setup
+- uses: ./.argent-cloud-actions/install
+
+- uses: ./.argent-cloud-actions/acquire
   with:
     username: ${{ vars.SIM_ROUTER_USERNAME }}
     api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
@@ -176,6 +208,9 @@ Releases are tagged `vN.N.N`, with a moving `vN` tag. Pin `@v1` for the
 actions and pin `version:` to a `sim-remote` release tag if you need runs to
 be reproducible — the default `daily` is rebuilt from the latest tree.
 
+`v1` had a single `setup` action doing both halves; `v2` split it into
+`install` and `acquire`.
+
 ## Development
 
 ```bash
@@ -183,8 +218,9 @@ node --test                                   # unit tests
 docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest -color
 ```
 
-The `setup` action is plain Node with no dependencies, so there is nothing to
-bundle or commit into `dist/`: what runs on the runner is what is in the repo.
+`install` and `acquire` are plain Node with no dependencies, sharing
+`lib/lib.js`, so there is nothing to bundle or commit into `dist/`: what runs
+on the runner is what is in the repo.
 `.github/workflows/e2e.yml` exercises the credentialed path against a real
 fleet machine; it needs `SIM_ROUTER_USERNAME` and `SIM_ROUTER_API_KEY` in this
 repository's secrets.

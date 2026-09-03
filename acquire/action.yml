@@ -1,0 +1,64 @@
+name: Acquire an Argent Cloud machine
+description: >-
+  Log in to sim-router and take a machine from the fleet for this job. The
+  machine is released automatically when the job ends. Needs sim-remote on
+  PATH — run the install action first.
+author: Software Mansion
+
+inputs:
+  username:
+    description: sim-router username.
+    required: true
+  api-key:
+    description: sim-router API key. Pass a secret, never a literal.
+    required: true
+  router-url:
+    description: >-
+      sim-router URL. Leave empty to use the one baked into the binary — an
+      unset secret arrives as an empty string, and passing that through would
+      override the baked-in default with nothing.
+    required: false
+    default: ''
+  acquire:
+    description: >-
+      Take a machine after logging in. Set to false to log in only — for a job
+      that attaches to a machine it already holds.
+    required: false
+    default: 'true'
+  timeout:
+    description: >-
+      Seconds a single acquire waits for a free machine. The router clamps
+      this to its own maximum, which is why waiting longer is done by retrying
+      rather than by raising this.
+    required: false
+    default: '300'
+  retries:
+    description: How many acquire attempts to make before giving up.
+    required: false
+    default: '8'
+  retry-delay:
+    description: Seconds to wait between acquire attempts.
+    required: false
+    default: '30'
+  release:
+    description: >-
+      Release the machine (by logging out) in the post step. Set to false only
+      when a later job in the same run is meant to inherit the session.
+    required: false
+    default: 'true'
+  sim-remote-path:
+    description: >-
+      Path to the CLI. Defaults to whatever `sim-remote` resolves to on PATH,
+      which is what the install action puts there.
+    required: false
+    default: ''
+
+runs:
+  using: node20
+  main: main.js
+  post: post.js
+  post-if: always()
+
+branding:
+  icon: smartphone
+  color: purple

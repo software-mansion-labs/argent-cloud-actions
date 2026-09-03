@@ -26,13 +26,17 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Setup sim-remote
-        uses: ./setup
+      - name: Install sim-remote
+        uses: ./install
+        with:
+          version: ${{ inputs.version || 'daily' }}
+
+      - name: Acquire a fleet machine
+        uses: ./acquire
         with:
           username: ${{ secrets.SIM_ROUTER_USERNAME }}
           api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
           router-url: ${{ secrets.SIM_ROUTER_URL }}
-          version: ${{ inputs.version || 'daily' }}
 
       - name: List the simulators on the acquired machine
         run: sim-remote simctl list devices --json | jq -e '.devices' > /dev/null

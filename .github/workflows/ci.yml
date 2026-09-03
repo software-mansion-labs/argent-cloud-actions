@@ -29,9 +29,9 @@ jobs:
           node-version: '20'
       - run: node --test
 
-  # Installs the CLI without credentials, which is all that can be checked
-  # without a fleet: it proves the asset for this runner exists, downloads,
-  # runs, and lands on PATH. The credentialed path is e2e.yml.
+  # Installing needs no credentials, which is what makes it checkable here:
+  # it proves the asset for this runner exists, downloads, runs, and lands on
+  # PATH. Acquiring needs a fleet machine, so it lives in e2e.yml.
   install:
     name: Install (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
@@ -43,12 +43,29 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Install sim-remote
-        id: setup
-        uses: ./setup
+        id: install
+        uses: ./install
 
       - name: Check the CLI is on PATH and runs
         run: |
           command -v sim-remote
           sim-remote --help > /dev/null
-          test -x "${{ steps.setup.outputs.sim-remote-path }}"
-          test "${{ steps.setup.outputs.logged-in }}" = "false"
+          test -x "${{ steps.install.outputs.sim-remote-path }}"
+
+      # The acquire action must name the install action as the fix when the
+      # CLI is missing, rather than failing with a bare ENOENT.
+      - name: Check acquire reports a missing CLI clearly
+        env:
+          INPUT_USERNAME: ci-nobody
+          INPUT_API-KEY: not-a-key
+        run: |
+          # A PATH with node on it but no sim-remote, which is exactly the
+          # state of a job that forgot the install action.
+          BARE_PATH="$(dirname "$(command -v node)"):/usr/bin:/bin"
+
+          if PATH="$BARE_PATH" node acquire/main.js > out.log 2>&1; then
+            echo "acquire succeeded without sim-remote installed"
+            cat out.log
+            exit 1
+          fi
+          grep -q "run the install action first" out.log

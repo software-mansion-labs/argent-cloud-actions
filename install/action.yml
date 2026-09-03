@@ -1,0 +1,38 @@
+name: Install sim-remote
+description: >-
+  Install the sim-remote CLI (the Argent Cloud client) and add it to PATH.
+  Taking a fleet machine is the acquire action's job.
+author: Software Mansion
+
+inputs:
+  version:
+    description: >-
+      Release tag to install from the release repo. The default, `daily`, is a
+      rolling prerelease rebuilt from the latest tree; pin a version tag for
+      reproducible runs.
+    required: false
+    default: daily
+  release-repo:
+    description: Repository holding the sim-remote releases.
+    required: false
+    default: software-mansion/sim-remote-releases
+  token:
+    description: >-
+      Token with read access to release-repo. Only needed when that repo is
+      private; public releases download unauthenticated.
+    required: false
+    default: ''
+
+outputs:
+  sim-remote-path:
+    description: Absolute path of the installed CLI.
+  install-dir:
+    description: Directory added to PATH, holding the CLI.
+
+runs:
+  using: node20
+  main: main.js
+
+branding:
+  icon: download
+  color: purple
