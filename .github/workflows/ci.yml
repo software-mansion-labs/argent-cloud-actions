@@ -71,3 +71,15 @@ jobs:
             exit 1
           fi
           grep -q "run the install action first" out.log
+
+  # The local `uses: ./install` above cannot prove the one thing a consumer
+  # depends on: that a `owner/repo/subdir@ref` reference brings the whole
+  # repository with it, so the action's `require('../lib/lib.js')` resolves.
+  # This job references the published tag the way a consumer would.
+  published:
+    name: Published reference
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: software-mansion-labs/argent-cloud-actions/install@v1
+      - run: sim-remote --help > /dev/null

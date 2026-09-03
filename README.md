@@ -208,9 +208,6 @@ Releases are tagged `vN.N.N`, with a moving `vN` tag. Pin `@v1` for the
 actions and pin `version:` to a `sim-remote` release tag if you need runs to
 be reproducible — the default `daily` is rebuilt from the latest tree.
 
-`v1` had a single `setup` action doing both halves; `v2` split it into
-`install` and `acquire`.
-
 ## Development
 
 ```bash
