@@ -144,6 +144,32 @@ loads JS from a Metro server on the runner needs a tunnel:
 | Intel macOS (`macos-13`) | no — no `x86_64-apple-darwin` build is published |
 | Windows | no |
 
+## Using it from another repository
+
+This repository is private, and GitHub only resolves a `uses:` reference to a
+private action from repositories in the **same organization** — its Actions
+access policy is already set to allow that, so any
+`software-mansion-labs/*` workflow can reference it directly.
+
+From outside the organization (`software-mansion/*`, for instance) a `uses:`
+reference cannot work. Check the actions out and reference them by path
+instead:
+
+```yaml
+- name: Check out the Argent Cloud actions
+  uses: actions/checkout@v5
+  with:
+    repository: software-mansion-labs/argent-cloud-actions
+    ref: v1
+    path: .argent-cloud-actions
+    token: ${{ secrets.ARGENT_ACTIONS_TOKEN }}  # read access to this repo
+
+- uses: ./.argent-cloud-actions/setup
+  with:
+    username: ${{ vars.SIM_ROUTER_USERNAME }}
+    api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
+```
+
 ## Versioning
 
 Releases are tagged `vN.N.N`, with a moving `vN` tag. Pin `@v1` for the
