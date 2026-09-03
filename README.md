@@ -218,7 +218,8 @@ node --test                                   # unit tests
 docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest -color
 ```
 
-`install` and `acquire` are plain Node with no dependencies, sharing
+`install` and `acquire` run on the runner's Node 24 (`using: node24`) and are
+plain Node with no dependencies, sharing
 `lib/lib.js`, so there is nothing to bundle or commit into `dist/`: what runs
 on the runner is what is in the repo.
 `.github/workflows/e2e.yml` exercises the credentialed path against a real
