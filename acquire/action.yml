@@ -16,8 +16,11 @@ inputs:
     description: >-
       sim-router URL. Leave empty to use the one baked into the binary. An
       empty value is treated as unset — whether it is passed here or inherited
-      as an empty SIM_ROUTER_URL from the job environment, which is what
-      `${{ secrets.SIM_ROUTER_URL }}` expands to when that secret is not set.
+      as an empty SIM_ROUTER_URL from the job environment, which is what a
+      `secrets.SIM_ROUTER_URL` expression expands to when that secret is not
+      set. (No `$` + braces around that here: the runner evaluates expressions
+      in this file too, and `secrets` is not a named-value it knows, so the
+      manifest would fail to load.)
     required: false
     default: ''
   acquire:

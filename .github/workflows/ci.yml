@@ -15,9 +15,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Lint workflows and actions
+      - name: Lint workflows
         run: |
           docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint:latest -color
+
+      # actionlint does not read action manifests, and the runner evaluates
+      # `${{ }}` everywhere in them — descriptions included. A `secrets.`
+      # reference there is not a named-value the runner knows, and the whole
+      # manifest fails to load (this has shipped once). Loading each action
+      # for real is the stronger check, done below; this catches the
+      # specific mistake at lint time with a useful line number.
+      - name: Lint action manifests
+        run: |
+          if grep -rn --include=action.yml -E '\$\{\{[^}]*\bsecrets\.' .; then
+            echo "::error::action manifests cannot reference secrets in an expression"
+            exit 1
+          fi
 
   test:
     name: Unit tests
@@ -54,6 +67,18 @@ jobs:
           sim-remote --help > /dev/null
           test -x "${{ steps.install.outputs.sim-remote-path }}"
 
+      # Writing the shims needs no session, so the manifest and the whole
+      # step can be exercised here. Last in the job on purpose: with the shim
+      # directory on PATH, `xcrun` now means the shim.
+      - name: Install Maestro shims
+        id: shims
+        uses: ./maestro-shims
+
+      - name: Check the shims landed on PATH
+        run: |
+          test "$(command -v xcrun)" = "${{ steps.shims.outputs.shim-dir }}/xcrun"
+          test -n "$SIM_REMOTE_BIN"
+
       # The acquire action must name the install action as the fix when the
       # CLI is missing, rather than failing with a bare ENOENT.
       - name: Check acquire reports a missing CLI clearly
@@ -83,3 +108,46 @@ jobs:
     steps:
       - uses: software-mansion-labs/argent-cloud-actions/install@v1
       - run: sim-remote --help > /dev/null
+
+  # Loads the acquire action and runs it to completion without a fleet: the
+  # CLI is a stub that records what it was asked, so this checks that the
+  # manifest loads at all (the failure mode above), that login and acquire
+  # are issued in that order with the documented flags, and that an empty
+  # inherited SIM_ROUTER_URL is stripped before the CLI sees it. The post
+  # step then logs out against the same stub.
+  acquire:
+    name: Acquire (stub CLI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Write a stub sim-remote
+        run: |
+          mkdir -p "$RUNNER_TEMP/stub"
+          STUB_LOG="$RUNNER_TEMP/stub.log"
+          cat > "$RUNNER_TEMP/stub/sim-remote" <<EOF
+          #!/bin/sh
+          echo "argv: \$*" >> "$STUB_LOG"
+          echo "url: \${SIM_ROUTER_URL-UNSET}" >> "$STUB_LOG"
+          EOF
+          chmod +x "$RUNNER_TEMP/stub/sim-remote"
+          echo "STUB_BIN=$RUNNER_TEMP/stub/sim-remote" >> "$GITHUB_ENV"
+          echo "STUB_LOG=$STUB_LOG" >> "$GITHUB_ENV"
+
+      - name: Acquire through the stub
+        uses: ./acquire
+        env:
+          # What `${{ secrets.SIM_ROUTER_URL }}` expands to for an unset secret.
+          SIM_ROUTER_URL: ''
+        with:
+          username: stub
+          api-key: stub-key
+          sim-remote-path: ${{ env.STUB_BIN }}
+
+      - name: Check what the CLI was asked
+        run: |
+          cat "$STUB_LOG"
+          grep -qx 'argv: login --no-acquire' "$STUB_LOG"
+          grep -qx 'argv: acquire --timeout 300' "$STUB_LOG"
+          # Every invocation must have seen the URL absent, not empty.
+          test "$(grep -c '^url: ' "$STUB_LOG")" = "$(grep -c '^url: UNSET$' "$STUB_LOG")"
