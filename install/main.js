@@ -12,6 +12,7 @@ const path = require('node:path');
 const {
   appendCommandFile,
   appendPath,
+  DEFAULT_RELEASES_URL,
   assetUrl,
   input,
   installDir,
@@ -25,42 +26,11 @@ const DOWNLOAD_RETRY_DELAY_MS = 3_000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/// The download URL for the requested release asset. A public repo has a
-/// stable browser URL; a private one only answers to the API, and only with a
-/// token and the octet-stream Accept header.
-async function resolveAssetUrl(repo, tag, target, token) {
-  const name = `sim-remote-${target}`;
-  if (!token) return { url: assetUrl(repo, tag, target), headers: {} };
-
-  const api = `https://api.github.com/repos/${repo}/releases/tags/${encodeURIComponent(tag)}`;
-  const headers = {
-    accept: 'application/vnd.github+json',
-    authorization: `Bearer ${token}`,
-    'user-agent': 'argent-cloud-actions',
-  };
-  const response = await fetch(api, { headers });
-  if (!response.ok) {
-    throw new Error(`could not read release "${tag}" from ${repo}: HTTP ${response.status}`);
-  }
-  const release = await response.json();
-  const asset = (release.assets ?? []).find((candidate) => candidate.name === name);
-  if (!asset) {
-    throw new Error(
-      `release "${tag}" in ${repo} has no asset named ${name} — ` +
-        `available: ${(release.assets ?? []).map((a) => a.name).join(', ') || '(none)'}`,
-    );
-  }
-  return {
-    url: asset.url,
-    headers: { ...headers, accept: 'application/octet-stream' },
-  };
-}
-
 /// Download the CLI to `destination`, executable.
-async function download(url, headers, destination) {
+async function download(url, destination) {
   for (let attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt += 1) {
     try {
-      const response = await fetch(url, { headers, redirect: 'follow' });
+      const response = await fetch(url, { redirect: 'follow' });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status} ${response.statusText}`);
       }
@@ -82,19 +52,16 @@ async function download(url, headers, destination) {
 }
 
 async function main() {
-  const version = input('version') || 'daily';
-  const releaseRepo = input('release-repo') || 'software-mansion/sim-remote-releases';
-  const token = input('token');
+  const releasesUrl = input('releases-url') || DEFAULT_RELEASES_URL;
 
   const target = targetTriple(process.platform, process.arch);
   const dir = installDir();
   const cli = path.join(dir, 'sim-remote');
 
-  console.log(`::group::Install sim-remote (${version}, ${target})`);
+  console.log(`::group::Install sim-remote (latest release, ${target})`);
   try {
     fs.mkdirSync(dir, { recursive: true });
-    const { url, headers } = await resolveAssetUrl(releaseRepo, version, target, token);
-    await download(url, headers, cli);
+    await download(assetUrl(releasesUrl, target), cli);
 
     // Smoke check: the CLI has no --version flag, but --help exits 0 and
     // proves the binary runs on this host at all. Its output is buffered and
@@ -112,7 +79,7 @@ async function main() {
     console.log('::endgroup::');
   }
 
-  console.log(`Installed sim-remote ${version} to ${cli}`);
+  console.log(`Installed sim-remote to ${cli}`);
   appendCommandFile('GITHUB_OUTPUT', 'sim-remote-path', cli);
   appendCommandFile('GITHUB_OUTPUT', 'install-dir', dir);
 }

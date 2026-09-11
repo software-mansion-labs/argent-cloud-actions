@@ -29,7 +29,6 @@ jobs:
 
       - uses: software-mansion-labs/argent-cloud-actions/acquire@v1
         with:
-          username: ${{ vars.SIM_ROUTER_USERNAME }}
           api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
 
       # From here the CLI is on PATH and a machine is held for this job.
@@ -44,7 +43,6 @@ cancelled, so a failed run does not hold a machine until its lease expires.
 
 | Name | Where it goes | Notes |
 | --- | --- | --- |
-| `SIM_ROUTER_USERNAME` | Actions **variable** (or secret) | Your fleet user. |
 | `SIM_ROUTER_API_KEY` | Actions **secret** | Never pass a literal. |
 | `SIM_ROUTER_URL` | Actions secret, optional | Only for a router other than the one baked into the binary. Safe to wire up unconditionally: an empty value means "use the built-in default". |
 
@@ -73,23 +71,19 @@ only `acquire` needs it.
 
 ## `install`
 
-Downloads the CLI from the release repo and adds it to `PATH`. No credentials,
-no machine — a job that only needs the binary stops here.
+Downloads the latest published release of the CLI and adds it to `PATH`. No
+credentials, no machine — a job that only needs the binary stops here.
 
 ```yaml
 - uses: software-mansion-labs/argent-cloud-actions/install@v1
   id: install
-  with:
-    version: daily
 ```
 
 ### Inputs
 
 | Input | Default | Description |
 | --- | --- | --- |
-| `version` | `daily` | Release tag to install. `daily` is a rolling prerelease — pin a version tag for reproducible runs. |
-| `release-repo` | `software-mansion/sim-remote-releases` | Repository holding the releases. |
-| `token` | `''` | Token with read access to `release-repo`; only needed when it is private. |
+| `releases-url` | `https://github.com/software-mansion/sim-remote-releases/releases` | Where the releases are published. The binary comes from `<releases-url>/latest/download/sim-remote-<target>`. |
 
 ### Outputs
 
@@ -106,7 +100,6 @@ job. Expects `sim-remote` on `PATH`, so it goes after `install`.
 ```yaml
 - uses: software-mansion-labs/argent-cloud-actions/acquire@v1
   with:
-    username: ${{ vars.SIM_ROUTER_USERNAME }}
     api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
 ```
 
@@ -114,7 +107,6 @@ job. Expects `sim-remote` on `PATH`, so it goes after `install`.
 
 | Input | Default | Description |
 | --- | --- | --- |
-| `username` | — | sim-router username. Required. |
 | `api-key` | — | sim-router API key. Required. |
 | `router-url` | `''` | Router URL. Empty means the one baked into the binary — see below. |
 | `acquire` | `true` | Take a machine after logging in. `false` logs in only. |
@@ -167,7 +159,6 @@ simulator from Linux, unmodified.
 
 - uses: software-mansion-labs/argent-cloud-actions/acquire@v1
   with:
-    username: ${{ vars.SIM_ROUTER_USERNAME }}
     api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
 
 - uses: software-mansion-labs/argent-cloud-actions/maestro-shims@v1
@@ -237,15 +228,15 @@ instead:
 
 - uses: ./.argent-cloud-actions/acquire
   with:
-    username: ${{ vars.SIM_ROUTER_USERNAME }}
     api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
 ```
 
 ## Versioning
 
 Releases are tagged `vN.N.N`, with a moving `vN` tag. Pin `@v1` for the
-actions and pin `version:` to a `sim-remote` release tag if you need runs to
-be reproducible — the default `daily` is rebuilt from the latest tree.
+actions. The `install` action always fetches the latest published `sim-remote`
+release; point `releases-url` elsewhere to install from a different set of
+releases.
 
 ## Development
 
@@ -259,7 +250,6 @@ plain Node with no dependencies, sharing
 `lib/lib.js`, so there is nothing to bundle or commit into `dist/`: what runs
 on the runner is what is in the repo.
 `.github/workflows/e2e.yml` exercises the credentialed path against a real
-fleet machine; it needs `SIM_ROUTER_USERNAME` and `SIM_ROUTER_API_KEY` in this
-repository's secrets.
+fleet machine; it needs `SIM_ROUTER_API_KEY` in this repository's secrets.
 
 [sim-remote]: https://github.com/software-mansion/radon-cloud

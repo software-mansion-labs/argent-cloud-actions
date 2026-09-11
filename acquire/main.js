@@ -53,7 +53,7 @@ async function loginAndAcquire(cli, options) {
   const env = childEnv(process.env, options);
 
   if (!run(cli, ['login', '--no-acquire'], env)) {
-    throw new Error('sim-remote login failed — check SIM_ROUTER_USERNAME / SIM_ROUTER_API_KEY');
+    throw new Error('sim-remote login failed — check SIM_ROUTER_API_KEY');
   }
   console.log('Logged in to sim-router.');
 
@@ -83,20 +83,18 @@ async function loginAndAcquire(cli, options) {
 }
 
 async function main() {
-  const username = input('username');
   const apiKey = input('api-key');
   const routerUrl = input('router-url');
 
   if (apiKey) console.log(`::add-mask::${apiKey}`);
-  if (!username || !apiKey) {
-    throw new Error('username and api-key are required');
+  if (!apiKey) {
+    throw new Error('api-key is required');
   }
 
   const cli = resolveCli();
 
   await loginAndAcquire(cli, {
     routerUrl,
-    username,
     apiKey,
     acquire: boolInput(input('acquire'), true),
     timeout: intInput('timeout', input('timeout'), 300),

@@ -83,7 +83,6 @@ jobs:
       # CLI is missing, rather than failing with a bare ENOENT.
       - name: Check acquire reports a missing CLI clearly
         env:
-          INPUT_USERNAME: ci-nobody
           INPUT_API-KEY: not-a-key
         run: |
           # A PATH with node on it but no sim-remote, which is exactly the
@@ -140,7 +139,6 @@ jobs:
           # What `${{ secrets.SIM_ROUTER_URL }}` expands to for an unset secret.
           SIM_ROUTER_URL: ''
         with:
-          username: stub
           api-key: stub-key
           sim-remote-path: ${{ env.STUB_BIN }}
 

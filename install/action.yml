@@ -5,23 +5,12 @@ description: >-
 author: Software Mansion
 
 inputs:
-  version:
+  releases-url:
     description: >-
-      Release tag to install from the release repo. The default, `daily`, is a
-      rolling prerelease rebuilt from the latest tree; pin a version tag for
-      reproducible runs.
+      Base URL of the sim-remote releases. The latest published release is
+      always installed, from `<releases-url>/latest/download/sim-remote-<target>`.
     required: false
-    default: daily
-  release-repo:
-    description: Repository holding the sim-remote releases.
-    required: false
-    default: software-mansion/sim-remote-releases
-  token:
-    description: >-
-      Token with read access to release-repo. Only needed when that repo is
-      private; public releases download unauthenticated.
-    required: false
-    default: ''
+    default: https://github.com/software-mansion/sim-remote-releases/releases
 
 outputs:
   sim-remote-path:

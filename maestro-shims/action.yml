@@ -58,9 +58,9 @@ runs:
           exit 1
         fi
 
-        # `daily` is a rolling tag and has been rebuilt without the shims
-        # before; failing here says so, rather than leaving Maestro to fail
-        # much later with a missing xcrun.
+        # An older sim-remote (installed from a custom releases URL, say)
+        # may predate the shims; failing here says so, rather than leaving
+        # Maestro to fail much later with a missing xcrun.
         if ! sim-remote install-shims --help > /dev/null 2>&1; then
           echo "::error::this sim-remote build has no 'install-shims' command — install a newer release"
           exit 1

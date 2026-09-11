@@ -6,9 +6,6 @@ description: >-
 author: Software Mansion
 
 inputs:
-  username:
-    description: sim-router username.
-    required: true
   api-key:
     description: sim-router API key. Pass a secret, never a literal.
     required: true

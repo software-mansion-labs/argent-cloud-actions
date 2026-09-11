@@ -5,13 +5,8 @@ name: E2E
 # machine from the pool for the length of the run.
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: sim-remote release tag to test
-        type: string
-        default: daily
   schedule:
-    # Weekly, so a rolling `daily` build that breaks the actions is noticed
+    # Weekly, so a new sim-remote release that breaks the actions is noticed
     # before a consumer repo trips over it.
     - cron: '0 6 * * 1'
 
@@ -28,13 +23,10 @@ jobs:
 
       - name: Install sim-remote
         uses: ./install
-        with:
-          version: ${{ inputs.version || 'daily' }}
 
       - name: Acquire a fleet machine
         uses: ./acquire
         with:
-          username: ${{ secrets.SIM_ROUTER_USERNAME }}
           api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
           router-url: ${{ secrets.SIM_ROUTER_URL }}
 
