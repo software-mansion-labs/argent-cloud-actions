@@ -28,7 +28,6 @@ jobs:
         uses: ./acquire
         with:
           api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
-          router-url: ${{ secrets.SIM_ROUTER_URL }}
 
       - name: List the simulators on the acquired machine
         run: sim-remote simctl list devices --json | jq -e '.devices' > /dev/null

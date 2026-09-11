@@ -84,7 +84,6 @@ async function loginAndAcquire(cli, options) {
 
 async function main() {
   const apiKey = input('api-key');
-  const routerUrl = input('router-url');
 
   if (apiKey) console.log(`::add-mask::${apiKey}`);
   if (!apiKey) {
@@ -94,7 +93,6 @@ async function main() {
   const cli = resolveCli();
 
   await loginAndAcquire(cli, {
-    routerUrl,
     apiKey,
     acquire: boolInput(input('acquire'), true),
     timeout: intInput('timeout', input('timeout'), 300),
@@ -107,7 +105,6 @@ async function main() {
   // and a dash there makes for an env var no shell can reference.
   appendCommandFile('GITHUB_STATE', 'sim_remote_path', cli);
   appendCommandFile('GITHUB_STATE', 'release', String(boolInput(input('release'), true)));
-  if (routerUrl) appendCommandFile('GITHUB_STATE', 'router_url', routerUrl);
 }
 
 main().catch((error) => {

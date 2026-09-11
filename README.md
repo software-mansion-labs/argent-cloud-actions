@@ -44,7 +44,6 @@ cancelled, so a failed run does not hold a machine until its lease expires.
 | Name | Where it goes | Notes |
 | --- | --- | --- |
 | `SIM_ROUTER_API_KEY` | Actions **secret** | Never pass a literal. |
-| `SIM_ROUTER_URL` | Actions secret, optional | Only for a router other than the one baked into the binary. Safe to wire up unconditionally: an empty value means "use the built-in default". |
 
 ### Secret handling
 
@@ -108,7 +107,6 @@ job. Expects `sim-remote` on `PATH`, so it goes after `install`.
 | Input | Default | Description |
 | --- | --- | --- |
 | `api-key` | — | sim-router API key. Required. |
-| `router-url` | `''` | Router URL. Empty means the one baked into the binary — see below. |
 | `acquire` | `true` | Take a machine after logging in. `false` logs in only. |
 | `timeout` | `300` | Seconds a single acquire waits for a free machine. |
 | `retries` | `8` | How many acquire attempts before giving up. |
@@ -123,21 +121,13 @@ cancelled, so a failed run does not hold a machine until its lease expires.
 That post step is the reason this is a JavaScript action: a composite action
 cannot register one.
 
-### An empty router URL
+### The router URL
 
-An empty `SIM_ROUTER_URL` is treated as unset, both as this input and as an
-inherited environment variable. That matters because a job written as
-
-```yaml
-env:
-  SIM_ROUTER_URL: ${{ secrets.SIM_ROUTER_URL }}
-```
-
-gets an empty string, not an absent variable, whenever that secret is not
-configured — and the CLI counts a set-but-empty variable as a value, so it
-would override the URL baked into the binary with nothing and fail to connect
-(`error: builder error`). The action strips it instead, so wiring the secret
-up unconditionally is safe.
+The router URL is baked into the `sim-remote` binary and there is no input to
+override it. A `SIM_ROUTER_URL` in the job environment is not forwarded to the
+CLI either: the CLI counts a set-but-empty variable as a value, so a leftover
+`SIM_ROUTER_URL: ${{ secrets.SIM_ROUTER_URL }}` line whose secret is unset
+would otherwise override the baked-in URL with nothing and fail to connect.
 
 ### Waiting for a machine
 

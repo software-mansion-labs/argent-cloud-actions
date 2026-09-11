@@ -111,7 +111,7 @@ jobs:
   # Loads the acquire action and runs it to completion without a fleet: the
   # CLI is a stub that records what it was asked, so this checks that the
   # manifest loads at all (the failure mode above), that login and acquire
-  # are issued in that order with the documented flags, and that an empty
+  # are issued in that order with the documented flags, and that an
   # inherited SIM_ROUTER_URL is stripped before the CLI sees it. The post
   # step then logs out against the same stub.
   acquire:
@@ -136,8 +136,9 @@ jobs:
       - name: Acquire through the stub
         uses: ./acquire
         env:
-          # What `${{ secrets.SIM_ROUTER_URL }}` expands to for an unset secret.
-          SIM_ROUTER_URL: ''
+          # The baked-in router is the only one the actions use; anything a
+          # job sets here must not reach the CLI.
+          SIM_ROUTER_URL: https://not-the-router.invalid
         with:
           api-key: stub-key
           sim-remote-path: ${{ env.STUB_BIN }}
