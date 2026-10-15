@@ -25,9 +25,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: software-mansion-labs/argent-cloud-actions/install@v1
+      - uses: software-mansion-labs/argent-cloud-actions/install@v2
 
-      - uses: software-mansion-labs/argent-cloud-actions/acquire@v1
+      - uses: software-mansion-labs/argent-cloud-actions/acquire@v2
         with:
           api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
 
@@ -41,13 +41,48 @@ cancelled, so a failed run does not hold a machine until its lease expires.
 
 ### Credentials
 
-| Name | Where it goes | Notes |
+`acquire` logs in one of two ways:
+
+| Input | Where the value comes from | Notes |
 | --- | --- | --- |
-| `SIM_ROUTER_API_KEY` | Actions **secret** | Never pass a literal. |
+| `api-key` | An Actions **secret** (`SIM_ROUTER_API_KEY`) | Logs in as the user the key belongs to. Never pass a literal. |
+| `label` | The registration of this workflow on the router | Logs in **as the workflow**, with the OIDC id token GitHub mints for the job. No secret anywhere. |
+
+### Logging in as the workflow
+
+A job can log in with no stored secret at all. It presents the OIDC id token
+GitHub issues to it, which says which repository and workflow file it is
+running, and the router admits it if an administrator has registered that
+workflow for your tenant under a **label** — the name the job logs in under.
+Ask for the registration (it names the repository, the workflow file and the
+label; it can be narrowed to branches or deployment environments), then grant
+the job an id token and quote the label:
+
+```yaml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # without this GitHub mints no token and the action says so
+
+    steps:
+      - uses: software-mansion-labs/argent-cloud-actions/install@v2
+      - uses: software-mansion-labs/argent-cloud-actions/acquire@v2
+        with:
+          label: my-app-e2e
+```
+
+Each job is its own user, `<label>+<run_id>.<run_attempt>.<id>`, so matrix
+legs of one run hold separate machines and cannot release each other's. The
+rule matches the *calling* workflow file: a job in a reusable workflow logs in
+as the workflow that called it, and that caller must grant `id-token: write`
+too, since a called workflow can only narrow its caller's permissions. A
+`pull_request` run from a fork gets no id token.
 
 ### Secret handling
 
-`api-key` **must** come from `secrets.*`. The runner echoes a step's whole
+When an API key is used, `api-key` **must** come from `secrets.*`. The runner echoes a step's whole
 `with:` block into the log, and the only thing that redacts a value there is
 GitHub's automatic masking of registered secrets — so a key passed from
 `vars.*` or as a literal is printed in plaintext, and the action's own
@@ -74,7 +109,7 @@ Downloads the latest published release of the CLI and adds it to `PATH`. No
 credentials, no machine — a job that only needs the binary stops here.
 
 ```yaml
-- uses: software-mansion-labs/argent-cloud-actions/install@v1
+- uses: software-mansion-labs/argent-cloud-actions/install@v2
   id: install
 ```
 
@@ -97,16 +132,25 @@ Logs in and takes a machine from the fleet, holding it for the rest of the
 job. Expects `sim-remote` on `PATH`, so it goes after `install`.
 
 ```yaml
-- uses: software-mansion-labs/argent-cloud-actions/acquire@v1
+- uses: software-mansion-labs/argent-cloud-actions/acquire@v2
   with:
     api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
+```
+
+or, as the workflow (see [Logging in as the workflow](#logging-in-as-the-workflow)):
+
+```yaml
+- uses: software-mansion-labs/argent-cloud-actions/acquire@v2
+  with:
+    label: my-app-e2e
 ```
 
 ### Inputs
 
 | Input | Default | Description |
 | --- | --- | --- |
-| `api-key` | — | sim-router API key. Required. |
+| `api-key` | `''` | sim-router API key. Exactly one of `api-key` and `label`. |
+| `label` | `''` | Log in as this workflow, with the job's OIDC id token, under the label it is registered with on the router. Needs `permissions: id-token: write`. Exactly one of `api-key` and `label`. |
 | `acquire` | `true` | Take a machine after logging in. `false` logs in only. |
 | `timeout` | `300` | Seconds a single acquire waits for a free machine. |
 | `retries` | `8` | How many acquire attempts before giving up. |
@@ -145,13 +189,13 @@ for all six; with them on `PATH`, the stock Maestro CLI drives a remote
 simulator from Linux, unmodified.
 
 ```yaml
-- uses: software-mansion-labs/argent-cloud-actions/install@v1
+- uses: software-mansion-labs/argent-cloud-actions/install@v2
 
-- uses: software-mansion-labs/argent-cloud-actions/acquire@v1
+- uses: software-mansion-labs/argent-cloud-actions/acquire@v2
   with:
     api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
 
-- uses: software-mansion-labs/argent-cloud-actions/maestro-shims@v1
+- uses: software-mansion-labs/argent-cloud-actions/maestro-shims@v2
 
 - run: maestro --udid "$UDID" test .maestro/flow.yaml
 ```
@@ -210,7 +254,7 @@ instead:
   uses: actions/checkout@v5
   with:
     repository: software-mansion-labs/argent-cloud-actions
-    ref: v1
+    ref: v2
     path: .argent-cloud-actions
     token: ${{ secrets.ARGENT_ACTIONS_TOKEN }}  # read access to this repo
 
@@ -223,8 +267,12 @@ instead:
 
 ## Versioning
 
-Releases are tagged `vN.N.N`, with a moving `vN` tag. Pin `@v1` for the
-actions. The `install` action always fetches the latest published `sim-remote`
+Releases are tagged `vN.N.N`, with a moving `vN` tag. Pin `@v2` for the
+actions. `v2` differs from `v1` in that `install` takes no `version`,
+`release-repo` or `token` (it always fetches the latest published release),
+`acquire` takes no `username` or `router-url` (the key identifies the user and
+the router is the baked-in one), and `acquire` can log in as the workflow with
+`label` instead of an `api-key`. The `install` action always fetches the latest published `sim-remote`
 release; point `releases-url` elsewhere to install from a different set of
 releases.
 

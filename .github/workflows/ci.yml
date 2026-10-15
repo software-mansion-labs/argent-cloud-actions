@@ -105,18 +105,24 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: software-mansion-labs/argent-cloud-actions/install@v1
+      - uses: software-mansion-labs/argent-cloud-actions/install@v2
       - run: sim-remote --help > /dev/null
 
   # Loads the acquire action and runs it to completion without a fleet: the
   # CLI is a stub that records what it was asked, so this checks that the
   # manifest loads at all (the failure mode above), that login and acquire
-  # are issued in that order with the documented flags, and that an
-  # inherited SIM_ROUTER_URL is stripped before the CLI sees it. The post
-  # step then logs out against the same stub.
+  # are issued in that order with the documented flags for both credentials
+  # — an API key and a workflow label — and that an inherited SIM_ROUTER_URL
+  # is stripped before the CLI sees it. The post steps then log out against
+  # the same stub.
   acquire:
     name: Acquire (stub CLI)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # A workflow login is refused up front unless the job can request an
+      # id token, which is what this grants.
+      id-token: write
     steps:
       - uses: actions/checkout@v5
 
@@ -143,10 +149,38 @@ jobs:
           api-key: stub-key
           sim-remote-path: ${{ env.STUB_BIN }}
 
+      - name: Acquire as a workflow through the stub
+        uses: ./acquire
+        with:
+          label: stub-label
+          sim-remote-path: ${{ env.STUB_BIN }}
+
       - name: Check what the CLI was asked
         run: |
           cat "$STUB_LOG"
+          # The API key login: nothing in argv, the key is in the environment.
           grep -qx 'argv: login --no-acquire' "$STUB_LOG"
-          grep -qx 'argv: acquire --timeout 300' "$STUB_LOG"
+          # The workflow login names the registration it logs in under.
+          grep -qx 'argv: login --no-acquire --oidc --as stub-label' "$STUB_LOG"
+          test "$(grep -cx 'argv: acquire --timeout 300' "$STUB_LOG")" = 2
           # Every invocation must have seen the URL absent, not empty.
           test "$(grep -c '^url: ' "$STUB_LOG")" = "$(grep -c '^url: UNSET$' "$STUB_LOG")"
+
+      # The two credentials are exclusive and one is required, and a label
+      # without the id-token permission must name that permission rather
+      # than fail inside the CLI.
+      - name: Check the credential inputs are checked
+        env:
+          INPUT_SIM-REMOTE-PATH: ${{ env.STUB_BIN }}
+        run: |
+          set -euo pipefail
+          refuse() { # <expected message> <env assignments...>
+            local expected="$1"; shift
+            if env "$@" node acquire/main.js > out.log 2>&1; then
+              echo "acquire succeeded, expected: $expected"; cat out.log; exit 1
+            fi
+            grep -q "$expected" out.log || { echo "wrong refusal, expected: $expected"; cat out.log; exit 1; }
+          }
+          refuse 'one of api-key or label is required'
+          refuse 'exclusive' 'INPUT_API-KEY=k' 'INPUT_LABEL=l'
+          refuse 'id-token: write' -u ACTIONS_ID_TOKEN_REQUEST_URL -u ACTIONS_ID_TOKEN_REQUEST_TOKEN 'INPUT_LABEL=l'

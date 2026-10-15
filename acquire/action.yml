@@ -7,8 +7,20 @@ author: Software Mansion
 
 inputs:
   api-key:
-    description: sim-router API key. Pass a secret, never a literal.
-    required: true
+    description: >-
+      sim-router API key, to log in as the user it belongs to. Pass a secret,
+      never a literal. Give either this or `label`.
+    required: false
+    default: ''
+  label:
+    description: >-
+      Log in as this workflow instead, with the OIDC id token GitHub mints for
+      the job: the label is the name the workflow is registered under on the
+      router, which decides the tenant and the repository and workflow file it
+      admits. The job needs `permissions: id-token: write`. Give either this or
+      `api-key`.
+    required: false
+    default: ''
   acquire:
     description: >-
       Take a machine after logging in. Set to false to log in only — for a job

@@ -9,7 +9,16 @@
 
 const { spawnSync } = require('node:child_process');
 
-const { appendCommandFile, boolInput, childEnv, input, intInput } = require('../lib/lib.js');
+const {
+  appendCommandFile,
+  boolInput,
+  childEnv,
+  credential,
+  idTokenAvailable,
+  input,
+  intInput,
+  loginArgs,
+} = require('../lib/lib.js');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -50,10 +59,20 @@ function resolveCli() {
 /// acquire wait to its own maximum, so a long queue is waited out by asking
 /// repeatedly rather than by asking for one very long wait.
 async function loginAndAcquire(cli, options) {
-  const env = childEnv(process.env, options);
+  const { credential } = options;
+  const env = childEnv(
+    process.env,
+    credential.kind === 'api-key' ? { apiKey: credential.apiKey } : {},
+  );
 
-  if (!run(cli, ['login', '--no-acquire'], env)) {
-    throw new Error('sim-remote login failed — check SIM_ROUTER_API_KEY');
+  if (!run(cli, loginArgs(credential), env)) {
+    throw new Error(
+      credential.kind === 'api-key'
+        ? 'sim-remote login failed — check SIM_ROUTER_API_KEY'
+        : `sim-remote login failed — check that label "${credential.label}" is registered ` +
+          'on the router for this repository and workflow file (the message above names ' +
+          'what the router saw)',
+    );
   }
   console.log('Logged in to sim-router.');
 
@@ -84,16 +103,25 @@ async function loginAndAcquire(cli, options) {
 
 async function main() {
   const apiKey = input('api-key');
+  const label = input('label');
 
   if (apiKey) console.log(`::add-mask::${apiKey}`);
-  if (!apiKey) {
-    throw new Error('api-key is required');
+  const cred = credential({ apiKey, label });
+
+  // The CLI requests the id token itself, from the variables GitHub sets
+  // only for a job granted `id-token: write`. Checked up front so the fix is
+  // named here, in the job's own terms.
+  if (cred.kind === 'workflow' && !idTokenAvailable(process.env)) {
+    throw new Error(
+      'label is set but this job cannot request an OIDC id token — grant it ' +
+        '`permissions: id-token: write`',
+    );
   }
 
   const cli = resolveCli();
 
   await loginAndAcquire(cli, {
-    apiKey,
+    credential: cred,
     acquire: boolInput(input('acquire'), true),
     timeout: intInput('timeout', input('timeout'), 300),
     retries: intInput('retries', input('retries'), 8),
