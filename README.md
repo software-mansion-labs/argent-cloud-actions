@@ -240,30 +240,8 @@ loads JS from a Metro server on the runner needs a tunnel:
 
 ## Using it from another repository
 
-This repository is private, and GitHub only resolves a `uses:` reference to a
-private action from repositories in the **same organization** — its Actions
-access policy is already set to allow that, so any
-`software-mansion-labs/*` workflow can reference it directly.
-
-From outside the organization (`software-mansion/*`, for instance) a `uses:`
-reference cannot work. Check the actions out and reference them by path
-instead:
-
-```yaml
-- name: Check out the Argent Cloud actions
-  uses: actions/checkout@v5
-  with:
-    repository: software-mansion-labs/argent-cloud-actions
-    ref: v2
-    path: .argent-cloud-actions
-    token: ${{ secrets.ARGENT_ACTIONS_TOKEN }}  # read access to this repo
-
-- uses: ./.argent-cloud-actions/install
-
-- uses: ./.argent-cloud-actions/acquire
-  with:
-    api-key: ${{ secrets.SIM_ROUTER_API_KEY }}
-```
+This repository is public, so a workflow in any repository can reference the
+actions with `uses:` directly; nothing needs checking out.
 
 ## Versioning
 
